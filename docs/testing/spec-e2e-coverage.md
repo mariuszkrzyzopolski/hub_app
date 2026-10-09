@@ -4,7 +4,7 @@ type: 'feature'
 created: '2026-05-19'
 status: 'done'
 baseline_commit: '2cad862'
-context: ['e2e/spec-e2e-admin-and-pages.md']
+context: ['docs/testing/spec-e2e-admin-and-pages.md']
 ---
 
 <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">

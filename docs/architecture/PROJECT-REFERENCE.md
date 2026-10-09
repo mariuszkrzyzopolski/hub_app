@@ -80,8 +80,13 @@ hub_app/
 │   ├── conftest.py                    # Test configuration and fixtures
 │   ├── test_admin.py                  # Admin interface tests
 │   ├── test_claims.py                 # Claim/assignment tests
-│   ├── test_guest_pages.py            # Guest page access tests
-│   └── spec-e2e-*.md                  # E2E test specifications
+│   └── test_guest_pages.py            # Guest page access tests
+├── docs/                              # Project documentation & agent specifications
+│   ├── README.md                      # Documentation index and agent guide
+│   ├── architecture/                  # Architecture and system references
+│   ├── product/                       # Product briefs and specifications
+│   ├── design/                        # UX design specifications
+│   └── testing/                       # E2E test coverage and scenario specs
 ├── .env                               # Environment variables (secret key, DB config)
 └── .env.template                      # Environment variable template
 ```
@@ -403,9 +408,9 @@ Location: `e2e/`
 | `test_claims.py` | Gift claims, role assignments, category locking, race conditions |
 | `test_guest_pages.py` | Authentication flow, name gating, password gating, page access |
 
-Test specifications:
-- `spec-e2e-admin-and-pages.md` — Admin + page rendering coverage
-- `spec-e2e-coverage.md` — Overall test coverage tracking
+Test specifications (located in `docs/testing/`):
+- `docs/testing/spec-e2e-admin-and-pages.md` — Admin + page rendering coverage
+- `docs/testing/spec-e2e-coverage.md` — Overall test coverage tracking
 
 ---
 

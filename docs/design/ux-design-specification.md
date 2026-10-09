@@ -1,13 +1,13 @@
 ---
 stepsCompleted: [1,2,3,4,5,6,7,8,9,11,12,13]
 inputDocuments:
-  - product-brief-personal-hub.md
-  - product-brief-personal-hub-distillate.md
-  - screenshots/home.png
-  - screenshots/gift_list.png
-  - templates/home.html
-  - templates/gift_index.html
-  - templates/gift_list.html
+  - ../product/product-brief-personal-hub.md
+  - ../product/product-brief-personal-hub-distillate.md
+  - ../../screenshots/home.png
+  - ../../screenshots/gift_list.png
+  - ../../templates/home.html
+  - ../../templates/gift_index.html
+  - ../../templates/gift_list.html
 ---
 
 # UX Design Specification — Personal Hub
