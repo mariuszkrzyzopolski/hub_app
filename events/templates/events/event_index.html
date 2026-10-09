@@ -1,0 +1,47 @@
+{% extends 'core/base.html' %}
+{% block title %}Wydarzenia{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+             style="vertical-align:middle;">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        Wydarzenia
+    </h1>
+    <p class="description">Przeglądaj aktywne wydarzenia. Kliknij, aby zobaczyć role do obsadzenia.</p>
+</div>
+
+{% if events %}
+    <div class="grid">
+    {% for ev in events %}
+        <div class="card">
+            <h2><a href="{% url 'event-roles' slug=ev.slug %}">{{ ev.name }}</a></h2>
+            <p class="meta">
+                {% if ev.assigned == ev.total %}
+                    <span class="progress fully-claimed">Wszystkie role obsadzone</span>
+                {% else %}
+                    <span class="progress">{{ ev.assigned }}/{{ ev.total }} obsadzonych</span>
+                {% endif %}
+            </p>
+            {% if ev.total > 0 %}
+            <div class="progress-bar">
+                <div class="progress-bar-fill{% if ev.assigned == ev.total %} full{% endif %}" style="width: {% widthratio ev.assigned ev.total 100 %}%;"></div>
+            </div>
+            {% endif %}
+        </div>
+    {% endfor %}
+    </div>
+{% else %}
+    <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <h2>Brak aktywnych wydarzeń</h2>
+        <p>Nie ma jeszcze żadnych aktywnych wydarzeń. Sprawdź później.</p>
+    </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends "admin/base_site.html" %}
+{% block extrastyle %}
+<style>
+.heatmap-section { margin-bottom: 2.5rem; }
+.heatmap-table { width: 100%; border-collapse: collapse; }
+.heatmap-table th, .heatmap-table td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #ddd; }
+.heatmap-table th { background: #f5f5f5; font-weight: 600; white-space: nowrap; }
+.heatmap-table tr:hover { background: #f9f9f9; }
+.heatmap-table tr:first-child td { border-top: 2px solid #073b3a; }
+.heatmap-bar { display: inline-block; height: 1.2rem; border-radius: 3px; min-width: 4px; transition: width 200ms ease; }
+.heatmap-count { margin-left: 0.5rem; font-size: 0.85rem; font-weight: 600; color: #333; }
+.breakdown-toggle { font-size: 0.85rem; color: #073b3a; cursor: pointer; text-decoration: none; margin-left: 0.5rem; }
+.breakdown-toggle:hover { text-decoration: underline; }
+.breakdown-detail { font-size: 0.8rem; color: #6b7280; margin-top: 0.25rem; display: none; }
+.breakdown-detail.show { display: block; }
+.breakdown-detail span { display: inline-block; margin-right: 0.75rem; }
+.section-title { margin: 1.5rem 0 0.5rem; font-size: 1.2rem; font-weight: 600; }
+.empty-state { color: #6b7280; padding: 1.5rem 0; text-align: center; }
+.rank-badge { display: inline-block; width: 24px; height: 24px; line-height: 24px; text-align: center; border-radius: 50%; font-size: 0.75rem; font-weight: 700; }
+.rank-1 { background: #ffd700; color: #333; }
+.rank-2 { background: #c0c0c0; color: #333; }
+.rank-3 { background: #cd7f32; color: #fff; }
+.rank-other { background: #e5e7eb; color: #6b7280; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <h1>Mapa wkładu gości</h1>
+    <p style="color:#6b7280;margin-bottom:1.5rem;">Zestawienie aktywności gości — kto przypisał najwięcej prezentów i ról.</p>
+
+    <div class="heatmap-section">
+        <h2 class="section-title">🎁 Prezenty — ranking gości</h2>
+        {% if gift_data %}
+        <table class="heatmap-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Gość</th>
+                    <th>Liczba przypisań</th>
+                    <th>Szczegóły</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for gc in gift_data %}
+                <tr>
+                    <td>
+                        <span class="rank-badge {% if forloop.counter == 1 %}rank-1{% elif forloop.counter == 2 %}rank-2{% elif forloop.counter == 3 %}rank-3{% else %}rank-other{% endif %}">
+                            {{ forloop.counter }}
+                        </span>
+                    </td>
+                    <td><strong>{{ gc.assignee_name }}</strong></td>
+                    <td>
+                        <div style="display:flex;align-items:center;">
+                            <div class="heatmap-bar" style="width:{% widthratio gc.total max_gift 200 %}px;background:{% if gc.total == max_gift %}#08a045{% elif gc.total > max_gift|divisibleby:2 %}#6bbf59{% else %}#a5d99e{% endif %};"></div>
+                            <span class="heatmap-count">{{ gc.total }}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="breakdown-toggle" onclick="this.nextElementSibling.classList.toggle('show')">▼ Pokaż</span>
+                        <div class="breakdown-detail">
+                            {% for item in gc.breakdown %}
+                                <span>• {{ item.item__gift_list__name }}: <strong>{{ item.count }}</strong></span><br>
+                            {% endfor %}
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">Brak danych o przypisaniach prezentów.</div>
+        {% endif %}
+    </div>
+
+    <div class="heatmap-section">
+        <h2 class="section-title">📋 Wydarzenia — ranking gości</h2>
+        {% if event_data %}
+        <table class="heatmap-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Gość</th>
+                    <th>Liczba przypisań</th>
+                    <th>Szczegóły</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for ec in event_data %}
+                <tr>
+                    <td>
+                        <span class="rank-badge {% if forloop.counter == 1 %}rank-1{% elif forloop.counter == 2 %}rank-2{% elif forloop.counter == 3 %}rank-3{% else %}rank-other{% endif %}">
+                            {{ forloop.counter }}
+                        </span>
+                    </td>
+                    <td><strong>{{ ec.assignee_name }}</strong></td>
+                    <td>
+                        <div style="display:flex;align-items:center;">
+                            <div class="heatmap-bar" style="width:{% widthratio ec.total max_event 200 %}px;background:{% if ec.total == max_event %}#073b3a{% elif ec.total > max_event|divisibleby:2 %}#0b6e4f{% else %}#6bbf59{% endif %};"></div>
+                            <span class="heatmap-count">{{ ec.total }}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="breakdown-toggle" onclick="this.nextElementSibling.classList.toggle('show')">▼ Pokaż</span>
+                        <div class="breakdown-detail">
+                            {% for item in ec.breakdown %}
+                                <span>• {{ item.role__category__event__name }}: <strong>{{ item.count }}</strong></span><br>
+                            {% endfor %}
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">Brak danych o przypisaniach ról.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

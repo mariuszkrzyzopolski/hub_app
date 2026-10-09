@@ -1,0 +1,268 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+/* ===== Mobile-friendly Admin Overrides ===== */
+
+/* Responsive table wrapper */
+@media (max-width: 768px) {
+    #changelist table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .aligned .form-row > div {
+        flex-direction: column;
+    }
+
+    .aligned .form-row label {
+        min-width: 100%;
+        margin-bottom: 0.25rem;
+    }
+
+    .aligned .form-row input,
+    .aligned .form-row textarea,
+    .aligned .form-row select {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .aligned .form-row .vTextField,
+    .aligned .form-row .vLargeTextField {
+        max-width: 100% !important;
+    }
+
+    .module h2, .module caption {
+        font-size: 0.9375rem;
+        padding: 0.6rem 0.75rem;
+    }
+
+    .inline-group .tabular table {
+        display: block;
+        overflow-x: auto;
+    }
+
+    .inline-group .tabular td.original p {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100px;
+    }
+
+    .submit-row {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .submit-row input, .submit-row a, .submit-row button {
+        width: 100%;
+        text-align: center;
+    }
+
+    .object-tools {
+        float: none;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.375rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .object-tools li {
+        float: none;
+    }
+
+    .object-tools a {
+        display: block;
+        text-align: center;
+    }
+
+    #changelist-filter {
+        position: static;
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+
+    #changelist .actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.375rem;
+    }
+
+    #changelist .actions select {
+        width: 100%;
+    }
+
+    #changelist .actions .button {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+/* ===== Task-oriented shortcuts ===== */
+.dashboard-module {
+    background: #F8F0E0;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    margin-bottom: 1.25rem;
+    padding: 1.25rem;
+}
+
+.dashboard-module h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e4c890;
+}
+
+.quick-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.75rem;
+}
+
+.stat-card {
+    text-align: center;
+    padding: 1rem 0.75rem;
+    background: #F8F0E0;
+    border-radius: 6px;
+    border: 1px solid #e4c890;
+}
+
+.stat-card .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #073b3a;
+    display: block;
+}
+
+.stat-card .stat-label {
+    font-size: 0.8125rem;
+    color: #6b7280;
+    margin-top: 0.25rem;
+    display: block;
+}
+
+.quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.quick-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 1rem;
+    background: #073b3a;
+    color: #fff;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background 150ms ease;
+}
+
+.quick-action-btn:hover {
+    background: #0b6e4f;
+    color: #fff;
+}
+
+.quick-action-btn.green {
+    background: #08a045;
+}
+
+.quick-action-btn.green:hover {
+    background: #07903a;
+}
+
+.recent-activity {
+    list-style: none;
+}
+
+.recent-activity li {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #e4c890;
+    font-size: 0.875rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.recent-activity li:last-child {
+    border-bottom: none;
+}
+
+.recent-activity .activity-action {
+    font-weight: 500;
+}
+
+.recent-activity .activity-time {
+    color: #9ca3af;
+    font-size: 0.8125rem;
+    white-space: nowrap;
+}
+
+/* View on site button */
+.view-on-site {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.625rem;
+    background: #F8F0E0;
+    border-radius: 3px;
+    font-size: 0.8125rem;
+    text-decoration: none;
+    color: #073b3a;
+    transition: background 150ms ease;
+}
+
+.view-on-site:hover {
+    background: #e4c890;
+    color: #0b6e4f;
+}
+
+/* Completion indicator in admin list */
+.completion-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+}
+
+.completion-bar {
+    width: 60px;
+    height: 6px;
+    background: #e4c890;
+    border-radius: 3px;
+    overflow: hidden;
+    display: inline-block;
+}
+
+.completion-bar-fill {
+    height: 100%;
+    background: #08a045;
+    border-radius: 3px;
+    display: block;
+}
+</style>
+{% endblock %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | Bambetle Hub Admin{% endblock %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">Bambetle Hub — Panel zarządzania</a></h1>
+{% endblock %}
+
+{% block nav-global %}
+<div style="display:flex;align-items:center;gap:0.75rem;">
+    <a href="{% url 'usage-statistics' %}" style="color:#fff;text-decoration:none;font-size:0.85rem;padding:0.25rem 0.5rem;background:rgba(255,255,255,0.1);border-radius:3px;">📊 Statystyki</a>
+    <a href="{% url 'contribution-heatmap' %}" style="color:#fff;text-decoration:none;font-size:0.85rem;padding:0.25rem 0.5rem;background:rgba(255,255,255,0.1);border-radius:3px;">🔥 Mapa wkładu</a>
+    <a href="{% url 'home' %}" style="color:#fff;text-decoration:none;font-size:0.85rem;padding:0.25rem 0.5rem;background:rgba(255,255,255,0.1);border-radius:3px;">🏠 Strona główna</a>
+</div>
+{% endblock %}

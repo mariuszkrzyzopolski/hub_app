@@ -25,6 +25,16 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
 
 # PyInstaller
 #   Usually these files are written by a python script from a template
@@ -218,3 +228,17 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# Private and sensitive files
+.obsidian/
+.smart-env/
+
+# Environment files
+*.env
+.env
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.Identifier

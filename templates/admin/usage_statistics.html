@@ -1,0 +1,98 @@
+{% extends "admin/base_site.html" %}
+{% block extrastyle %}
+<style>
+.stats-table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+.stats-table th, .stats-table td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #ddd; }
+.stats-table th { background: #f5f5f5; font-weight: 600; }
+.stats-table tr:hover { background: #f9f9f9; }
+.pct-bar { display: inline-block; height: 1rem; background: #08a045; border-radius: 3px; min-width: 2px; }
+.pct-text { margin-left: 0.5rem; font-size: 0.85rem; }
+.inactive { opacity: 0.5; }
+.archived { opacity: 0.4; text-decoration: line-through; }
+.section-title { margin: 1.5rem 0 0.5rem; font-size: 1.2rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <h1>Statystyki użycia</h1>
+
+    <h2 class="section-title">Listy prezentów</h2>
+    {% if gift_stats %}
+    <table class="stats-table">
+        <thead>
+            <tr>
+                <th>Nazwa</th>
+                <th>Zajęte / Łącznie</th>
+                <th>% ukończenia</th>
+                <th>Unikalni goście</th>
+                <th>Ostatnia aktywność</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for gs in gift_stats %}
+            <tr class="{% if gs.is_archived %}archived{% elif not gs.is_active %}inactive{% endif %}">
+                <td>{{ gs.name }}</td>
+                <td>{{ gs.claimed }} / {{ gs.total }}</td>
+                <td>
+                    <div style="display:flex;align-items:center;">
+                        <div class="pct-bar" style="width:{{ gs.completion_pct }}%;max-width:200px;"></div>
+                        <span class="pct-text">{{ gs.completion_pct }}%</span>
+                    </div>
+                </td>
+                <td>{{ gs.unique_claimants }}</td>
+                <td>{{ gs.last_activity|date:"Y-m-d H:i"|default:"—" }}</td>
+                <td>
+                    {% if gs.is_archived %}Zarchiwizowana
+                    {% elif not gs.is_active %}Nieaktywna
+                    {% else %}Aktywna{% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>Brak list prezentów.</p>
+    {% endif %}
+
+    <h2 class="section-title">Wydarzenia</h2>
+    {% if event_stats %}
+    <table class="stats-table">
+        <thead>
+            <tr>
+                <th>Nazwa</th>
+                <th>Przypisane / Łącznie</th>
+                <th>% ukończenia</th>
+                <th>Unikalni goście</th>
+                <th>Ostatnia aktywność</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for es in event_stats %}
+            <tr class="{% if es.is_archived %}archived{% elif not es.is_active %}inactive{% endif %}">
+                <td>{{ es.name }}</td>
+                <td>{{ es.assigned }} / {{ es.total }}</td>
+                <td>
+                    <div style="display:flex;align-items:center;">
+                        <div class="pct-bar" style="width:{{ es.completion_pct }}%;max-width:200px;"></div>
+                        <span class="pct-text">{{ es.completion_pct }}%</span>
+                    </div>
+                </td>
+                <td>{{ es.unique_assignees }}</td>
+                <td>{{ es.last_activity|date:"Y-m-d H:i"|default:"—" }}</td>
+                <td>
+                    {% if es.is_archived %}Zarchiwizowane
+                    {% elif not es.is_active %}Nieaktywne
+                    {% else %}Aktywne{% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>Brak wydarzeń.</p>
+    {% endif %}
+</div>
+{% endblock %}

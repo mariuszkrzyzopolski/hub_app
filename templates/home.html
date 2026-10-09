@@ -1,0 +1,67 @@
+{% extends 'core/base.html' %}
+{% block title %}Bambetle Hub{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Bambetle Hub</h1>
+    <p class="description">Organizator spotkań i lista prezentów</p>
+</div>
+
+<div class="grid">
+    <section class="card">
+        <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                 stroke="#588157" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                 style="background:#cfe3c9; border-radius:50%; padding:4px;">
+                <polyline points="20 12 20 22 4 22 4 12"/>
+                <rect x="2" y="7" width="20" height="5"/>
+                <line x1="12" y1="22" x2="12" y2="7"/>
+                <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/>
+                <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+            </svg>
+            <a href="{% url 'gift-index' %}">Listy prezentów</a>
+        </h2>
+        <p class="meta">Zobacz listy prezentów na różne okazje. Przypisz sobie prezent, aby inni wiedzieli, co już jest zajęte.</p>
+        {% if gift_lists %}
+            <ul class="entry-list">
+            {% for gl in gift_lists %}
+                <li>
+                    <a href="{% url 'gift-list' slug=gl.slug %}">{{ gl.name }}</a>
+                    <span class="progress{% if gl.claimed == gl.total %} fully-claimed{% endif %}">{{ gl.claimed }}/{{ gl.total }}</span>
+                </li>
+            {% endfor %}
+            </ul>
+        {% else %}
+            <p class="entry-empty">Brak aktywnych list prezentów.</p>
+        {% endif %}
+    </section>
+
+    <section class="card">
+        <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                 stroke="#3a5a40" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                 style="background:#dce8d2; border-radius:50%; padding:4px;">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <a href="{% url 'event-index' %}">Wydarzenia</a>
+        </h2>
+        <p class="meta">Sprawdź role do obsadzenia na nadchodzące wydarzenia. Zapisz się do roli lub całej kategorii.</p>
+        {% if events %}
+            <ul class="entry-list">
+            {% for ev in events %}
+                <li>
+                    <a href="{% url 'event-roles' slug=ev.slug %}">{{ ev.name }}</a>
+                    <span class="progress{% if ev.assigned == ev.total %} fully-claimed{% endif %}">{{ ev.assigned }}/{{ ev.total }}</span>
+                </li>
+            {% endfor %}
+            </ul>
+        {% else %}
+            <p class="entry-empty">Brak aktywnych wydarzeń.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

@@ -1,0 +1,146 @@
+{% extends 'core/base.html' %}
+{% block title %}{{ gift_list.name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>{{ gift_list.name }}</h1>
+    {% if gift_list.description %}
+        <p class="description">{{ gift_list.description }}</p>
+    {% endif %}
+    <div class="header-actions">
+        <span class="progress-text">Postęp: <strong>{{ claimed_items }} / {{ total_items }}</strong></span>
+        <form method="post" action="{% url 'gift-list' slug=gift_list.slug %}" style="display:inline;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_claims">
+            <input type="hidden" name="old_name" value="{{ guest_name }}">
+            <button type="submit" class="btn-link">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="23 4 23 10 17 10"/>
+                    <polyline points="1 20 1 14 7 14"/>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+                Odśwież przypisania
+            </button>
+        </form>
+    </div>
+    {% if total_items > 0 %}
+    <div class="progress-bar">
+        <div class="progress-bar-fill{% if claimed_items == total_items %} full{% endif %}" style="width: {% widthratio claimed_items total_items 100 %}%;"></div>
+    </div>
+    {% endif %}
+</div>
+
+{% if error %}
+    <div id="race-dialog" class="dialog-overlay">
+        <div class="dialog">
+            <div class="dialog-icon" style="background:var(--color-danger-bg);">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                     stroke="#b94040" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+            </div>
+            <p>{{ error }}</p>
+            <button onclick="location.reload()" class="btn-primary">Odśwież</button>
+        </div>
+    </div>
+{% endif %}
+
+<ul class="items">
+{% for item in items %}
+    <li class="item{% if item.claim %} claimed{% endif %}">
+        <div class="item-info">
+            <span class="item-name">{{ item.name }}</span>
+            {% if item.description %}
+                <span class="item-description">{{ item.description }}</span>
+            {% endif %}
+            {% if item.claim %}
+                <span class="item-claimant">{{ item.claim.assignee_name }}</span>
+            {% endif %}
+        </div>
+        <div class="item-actions">
+            {% if item.claim %}
+                <form method="post" style="display:inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="edit">
+                    <input type="hidden" name="claim_id" value="{{ item.claim.id }}">
+                    <button type="submit" class="btn-link">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                        Przepisz
+                    </button>
+                </form>
+                <button onclick="confirmDelete('{{ item.id }}', '{{ item.name|escapejs }}')" class="btn-danger">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        <line x1="10" y1="11" x2="10" y2="17"/>
+                        <line x1="14" y1="11" x2="14" y2="17"/>
+                    </svg>
+                    Usuń
+                </button>
+            {% else %}
+                <form method="post" style="display:inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="claim">
+                    <input type="hidden" name="item_id" value="{{ item.id }}">
+                    <button type="submit" class="btn-success">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Przypisz
+                    </button>
+                </form>
+            {% endif %}
+        </div>
+    </li>
+{% endfor %}
+</ul>
+
+<script>
+function confirmDelete(itemId, itemName) {
+    var csrfToken = document.querySelector('input[name=csrfmiddlewaretoken]').value;
+    var dialog = document.createElement('div');
+    dialog.className = 'dialog-overlay';
+    dialog.innerHTML = '<div class="dialog"><div class="dialog-icon" style="background:var(--color-danger-bg);"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#b94040" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></div><p>Czy na pewno chcesz usunąć przypisanie dla <strong>' + itemName + '</strong>?</p><div class="btn-group"><form method="post" style="display:inline;"><input type="hidden" name="csrfmiddlewaretoken" value="' + csrfToken + '"><input type="hidden" name="action" value="delete"><input type="hidden" name="item_id" value="' + itemId + '"><button type="submit" class="btn-danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Usuń</button></form><button onclick="this.closest(\'.dialog-overlay\').remove()" class="btn-secondary">Anuluj</button></div></div>';
+    document.body.appendChild(dialog);
+}
+
+(function() {
+    var countUrl = '{% url "gift-count-json" slug=gift_list.slug %}';
+    var progressText = document.querySelector('.progress-text');
+    var progressFill = document.querySelector('.progress-bar-fill');
+    var totalItems = {{ total_items }};
+    setInterval(function() {
+        fetch(countUrl)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (progressText) {
+                    progressText.innerHTML = 'Postęp: <strong>' + data.claimed + ' / ' + data.total + '</strong>';
+                }
+                if (progressFill && data.total > 0) {
+                    var pct = Math.round((data.claimed / data.total) * 100);
+                    progressFill.style.width = pct + '%';
+                    if (data.claimed === data.total) {
+                        progressFill.classList.add('full');
+                    } else {
+                        progressFill.classList.remove('full');
+                    }
+                }
+            })
+            .catch(function() {});
+    }, 10000);
+})();
+</script>
+{% endblock %}

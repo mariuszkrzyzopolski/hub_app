@@ -1,0 +1,57 @@
+{% extends 'core/base.html' %}
+{% block title %}Twoje imię{% endblock %}
+{% block content %}
+<div class="gate-container">
+    <h1>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+             stroke="#3a5a40" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+        </svg>
+        Witaj!
+    </h1>
+    <p>Podaj swoje imię, aby kontynuować. Imię musi być unikalne — jeśli jest zajęte, zaproponujemy alternatywy.</p>
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="guest-name">Twoje imię</label>
+            <input type="text" name="guest_name" id="guest-name" placeholder="Wpisz imię" required minlength="3" maxlength="200" autocomplete="off" autofocus{% if submitted_name %} value="{{ submitted_name }}"{% endif %}>
+        </div>
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% endif %}
+        {% if name_taken %}
+            <div class="name-taken-options">
+                <p><strong>Ta nazwa jest już zajęta.</strong></p>
+                <div class="option">
+                    <button type="submit" name="reclaim" value="1" class="btn-link-styled">To moje imię, loguję się ponownie</button>
+                    <p class="option-hint">Jeśli to Ty wcześniej wybrałeś to imię, kliknij tutaj.</p>
+                </div>
+                {% if suggestions %}
+                <div class="option">
+                    <p>Lub wybierz jedną z propozycji:</p>
+                    <ul class="suggestions-list">
+                    {% for suggestion in suggestions %}
+                        <li><a href="#" onclick="document.querySelector('[name=guest_name]').value='{{ suggestion }}'; document.querySelector('form').submit(); return false;">{{ suggestion }}</a></li>
+                    {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        {% else %}
+            {% if suggestions %}
+                <div class="suggestions">
+                    <p>Ta nazwa jest zajęta. Propozycje:</p>
+                    <ul>
+                    {% for suggestion in suggestions %}
+                        <li><a href="#" onclick="document.querySelector('[name=guest_name]').value='{{ suggestion }}'; return false;">{{ suggestion }}</a></li>
+                    {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+            <button type="submit" class="btn-primary">Dalej</button>
+        {% endif %}
+    </form>
+</div>
+{% endblock %}

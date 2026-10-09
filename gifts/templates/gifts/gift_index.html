@@ -1,0 +1,48 @@
+{% extends 'core/base.html' %}
+{% block title %}Listy prezentów{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+             style="vertical-align:middle;">
+            <polyline points="20 12 20 22 4 22 4 12"/>
+            <rect x="2" y="7" width="20" height="5"/>
+            <line x1="12" y1="22" x2="12" y2="7"/>
+            <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/>
+            <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+        </svg>
+        Listy prezentów
+    </h1>
+    <p class="description">Przeglądaj aktywne listy prezentów. Kliknij, aby zobaczyć szczegóły i przypisać sobie prezent.</p>
+</div>
+
+{% if gift_lists %}
+    <div class="grid">
+    {% for gl in gift_lists %}
+        <div class="card">
+            <h2><a href="{% url 'gift-list' slug=gl.slug %}">{{ gl.name }}</a></h2>
+            <p class="meta">
+                {% if gl.claimed == gl.total %}
+                    <span class="progress fully-claimed">Wszystkie prezenty przypisane</span>
+                {% else %}
+                    <span class="progress">{{ gl.claimed }}/{{ gl.total }} zajętych</span>
+                {% endif %}
+            </p>
+            {% if gl.total > 0 %}
+            <div class="progress-bar">
+                <div class="progress-bar-fill{% if gl.claimed == gl.total %} full{% endif %}" style="width: {% widthratio gl.claimed gl.total 100 %}%;"></div>
+            </div>
+            {% endif %}
+        </div>
+    {% endfor %}
+    </div>
+{% else %}
+    <div class="empty-state">
+        <div class="empty-icon">🎁</div>
+        <h2>Brak aktywnych list</h2>
+        <p>Nie ma jeszcze żadnych aktywnych list prezentów. Sprawdź później.</p>
+    </div>
+{% endif %}
+{% endblock %}
