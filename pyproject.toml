@@ -4,7 +4,7 @@ version = "1.0.1"
 description = "bambetle Hub — Gift List & Event Roles"
 requires-python = "==3.14"
 dependencies = [
-    "django>=6.0.8,<6.1",
+    "django>=6.0.9,<6.1",
     "psycopg2-binary>=2.9",
     "gunicorn>=26.0",
     "python-slugify>=8.0",
