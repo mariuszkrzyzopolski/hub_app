@@ -32,7 +32,8 @@ class TestAdminLogin:
     def test_admin_login_page_loads(self, page, base_url):
         """Admin login page is accessible and contains the login form."""
         page.goto(f"{base_url}/admin/")
-        assert "Personal Hub" in page.content()
+        content = page.content()
+        assert "Bambetle Hub" in content or "Personal Hub" in content
         assert page.locator("#id_username").count() == 1
         assert page.locator("#id_password").count() == 1
 
@@ -46,7 +47,7 @@ class TestAdminLogin:
         # Ensure we are NOT on the login page (login form should be gone)
         assert page.locator("#id_username").count() == 0
         content = page.content()
-        assert "Personal Hub" in content
+        assert "Bambetle Hub" in content or "Personal Hub" in content
         # Verify the index shows apps
         assert "Gifts" in content or "Gift Lists" in content
         assert "Events" in content

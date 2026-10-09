@@ -24,8 +24,57 @@ def get_env(key, default=None):
 
 @pytest.fixture(scope="session")
 def base_url():
-    """Return the base URL for the test server."""
-    return os.environ.get("TEST_BASE_URL", "http://127.0.0.1:8000")
+    """Return the base URL for the test server. Starts local server if not already running."""
+    import socket
+    import sys
+    import time
+    import urllib.request
+    from urllib.parse import urlparse
+
+    target_url = os.environ.get("TEST_BASE_URL", "http://127.0.0.1:8000")
+    parsed = urlparse(target_url)
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or 8000
+
+    def is_server_listening(h, p):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.5)
+            return s.connect_ex((h, p)) == 0
+
+    server_process = None
+    if not is_server_listening(host, port):
+        # Start server in background using gunicorn or runserver
+        cmd = [sys.executable, "manage.py", "runserver", f"{host}:{port}", "--noreload"]
+        server_process = subprocess.Popen(
+            cmd,
+            cwd=PROJECT_ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        ready = False
+        start_time = time.time()
+        while time.time() - start_time < 15:
+            if is_server_listening(host, port):
+                try:
+                    with urllib.request.urlopen(f"{target_url}/", timeout=1):
+                        ready = True
+                        break
+                except Exception:
+                    pass
+            time.sleep(0.2)
+        if not ready:
+            if server_process:
+                server_process.terminate()
+            raise RuntimeError(f"Could not connect to test server at {target_url}")
+
+    yield target_url
+
+    if server_process:
+        server_process.terminate()
+        try:
+            server_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            server_process.kill()
 
 
 @pytest.fixture(scope="session")
@@ -52,8 +101,9 @@ def db_connection_params():
 
 def _run_django_command(*args):
     """Run a Django management command and return the result."""
+    import sys
     result = subprocess.run(
-        ["uv", "run", "python", "manage.py"] + list(args),
+        [sys.executable, "manage.py"] + list(args),
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
@@ -441,8 +491,9 @@ def playwright_browser():
     from playwright.sync_api import sync_playwright
 
     # Ensure browser is installed
+    import sys
     subprocess.run(
-        ["uv", "run", "playwright", "install", "chromium"],
+        [sys.executable, "-m", "playwright", "install", "chromium"],
         cwd=PROJECT_ROOT,
         capture_output=True,
     )

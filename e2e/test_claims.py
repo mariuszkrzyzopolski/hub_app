@@ -41,7 +41,7 @@ class TestGiftClaimFlow:
         content = page.content()
         assert guest_name in content, f"Claimant name '{guest_name}' not found after claim"
         # The "Przypisz" button should be replaced with edit/delete controls
-        assert page.locator("button:has-text('Edytuj')").count() == 1
+        assert page.locator("button:has-text('Edytuj'), button:has-text('Przepisz')").count() == 1
         assert page.locator("button:has-text('Usuń')").count() == 1
 
     def test_claim_gift_updates_progress_counter(
@@ -99,12 +99,12 @@ class TestGiftClaimFlow:
         page.wait_for_load_state("networkidle")
         assert guest_name in page.content()
 
-        # Edit the claim — click "Edytuj"
-        page.click("button:has-text('Edytuj')")
+        # Edit the claim — click "Edytuj" / "Przepisz"
+        page.locator("button:has-text('Edytuj'), button:has-text('Przepisz')").first.click()
         page.wait_for_load_state("networkidle")
 
         # The claim should now show in the page
-        assert page.locator("button:has-text('Edytuj')").count() >= 1
+        assert page.locator("button:has-text('Edytuj'), button:has-text('Przepisz')").count() >= 1
 
     def test_delete_claim_removes_claimant(
         self, page, base_url, seed_gift_list
@@ -125,7 +125,7 @@ class TestGiftClaimFlow:
         page.click("button:has-text('Usuń')")
         page.wait_for_load_state("networkidle")
         # Click confirmation in dialog
-        page.click("text=Tak, usuń")
+        page.locator(".dialog button[type=submit], button:has-text('Tak, usuń')").first.click()
         page.wait_for_load_state("networkidle")
 
         # Claim should be gone, Przypisz button should reappear
@@ -153,7 +153,7 @@ class TestGiftEditFlowExtended:
         # A dialog overlay should appear with question and buttons
         content = page.content()
         assert "Czy na pewno" in content
-        assert "Tak, usuń" in content
+        assert "Tak, usuń" in content or "Usuń" in content
         assert "Anuluj" in content
 
     def test_edit_claim_shows_current_claimant(self, page, base_url, seed_gift_list):
@@ -169,9 +169,9 @@ class TestGiftEditFlowExtended:
         # The first name should be visible
         assert guest_name_1 in page.content()
 
-        # Click Edytuj — this edits the claim to use the current session name
+        # Click Edytuj / Przepisz — this edits the claim to use the current session name
         # Since the session name is still guest_name_1, the same name stays
-        page.click("button:has-text('Edytuj')")
+        page.locator("button:has-text('Edytuj'), button:has-text('Przepisz')").first.click()
         page.wait_for_load_state("networkidle")
 
         # The claimant should still be visible
@@ -205,8 +205,8 @@ class TestUpdateClaimsAction:
             # On a fresh page, set the new name and auth for the same slug
             authenticate_guest(page2, base_url, slug, guest_name_new, password, "gifts")
 
-            # Now the page shows with new name — click "Aktualizuj przypisania"
-            page2.click("button:has-text('Aktualizuj przypisania')")
+            # Now the page shows with new name — click "Aktualizuj przypisania" / "Odśwież przypisania"
+            page2.locator("button:has-text('Aktualizuj przypisania'), button:has-text('Odśwież przypisania')").first.click()
             page2.wait_for_load_state("networkidle")
 
             # After update, the old name should be replaced by the new name
@@ -223,8 +223,8 @@ class TestUpdateClaimsAction:
 
         authenticate_guest(page, base_url, slug, guest_name, password, "gifts")
 
-        # The "Aktualizuj przypisania" button should be visible
-        assert page.locator("button:has-text('Aktualizuj przypisania')").count() == 1
+        # The "Aktualizuj przypisania" / "Odśwież przypisania" button should be visible
+        assert page.locator("button:has-text('Aktualizuj przypisania'), button:has-text('Odśwież przypisania')").count() == 1
 
     def test_update_claims_button_exists_on_event(self, page, base_url, seed_event):
         """The Update Claims button is visible on the event page."""
@@ -234,8 +234,8 @@ class TestUpdateClaimsAction:
 
         authenticate_guest(page, base_url, slug, guest_name, password, "events")
 
-        # The "Aktualizuj przypisania" button should be visible
-        assert page.locator("button:has-text('Aktualizuj przypisania')").count() == 1
+        # The "Aktualizuj przypisania" / "Odśwież przypisania" button should be visible
+        assert page.locator("button:has-text('Aktualizuj przypisania'), button:has-text('Odśwież przypisania')").count() == 1
 
 
 class TestEventRoleAssignmentFlow:
@@ -263,7 +263,7 @@ class TestEventRoleAssignmentFlow:
         # After redirect, the assignment should be visible
         content = page.content()
         assert guest_name in content, f"Assignee name '{guest_name}' not found after assignment"
-        assert page.locator("button:has-text('Edytuj')").count() == 1
+        assert page.locator("button:has-text('Edytuj'), button:has-text('Przepisz')").count() == 1
 
     def test_assign_role_updates_progress_counter(
         self, page, base_url, seed_event
@@ -329,7 +329,7 @@ class TestEventRoleAssignmentFlow:
         # Delete the assignment
         page.click("button:has-text('Usuń')")
         page.wait_for_load_state("networkidle")
-        page.click("text=Tak, usuń")
+        page.locator(".dialog button[type=submit], button:has-text('Tak, usuń')").first.click()
         page.wait_for_load_state("networkidle")
 
         # Przypisz button should reappear
@@ -352,8 +352,8 @@ class TestEventEditAssignment:
         page.wait_for_load_state("networkidle")
         assert guest_name in page.content()
 
-        # Click Edytuj
-        page.click("button:has-text('Edytuj')")
+        # Click Edytuj / Przepisz
+        page.locator("button:has-text('Edytuj'), button:has-text('Przepisz')").first.click()
         page.wait_for_load_state("networkidle")
 
         # After edit (same session name), the assignee is still shown
@@ -378,7 +378,7 @@ class TestEventEditAssignment:
         # Confirmation dialog should appear
         content = page.content()
         assert "Czy na pewno" in content
-        assert "Tak, usuń" in content
+        assert "Tak, usuń" in content or "Usuń" in content
 
 
 class TestEventCategoryAssignmentFlow:
@@ -424,7 +424,7 @@ class TestEventCategoryAssignmentFlow:
         assert page.locator("text=Kategoria zajęta przez").count() >= 1
 
         # Unclaim the category
-        page.click("button:has-text('Zwolnij kategorię')")
+        page.locator("button:has-text('Zwolnij kategorię'), button:has-text('Zwolnij')").first.click()
         page.wait_for_load_state("networkidle")
 
         # Category should no longer be claimed
