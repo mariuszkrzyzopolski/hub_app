@@ -132,6 +132,27 @@ class TestAssignRole:
             t.join(timeout=5)
             connection.close()
 
+    def test_assign_role_rollback_on_failure(self, monkeypatch):
+        import events.assignments as assignments
+        from events.models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
+        from django.db import DatabaseError
+        from events.exceptions import RoleCollisionError
+
+        event = Event.objects.create(name="Summer Party")
+        cat = RoleCategory.objects.create(event=event, name="Music")
+        role = Role.objects.create(category=cat, name="DJ")
+
+        def failing_create(*args, **kwargs):
+            raise DatabaseError("Simulated database error during audit logging")
+
+        monkeypatch.setattr(EventAuditLog.objects, "create", failing_create)
+
+        with pytest.raises(RoleCollisionError):
+            assignments.assign_role(event, role.id, "Alice", "session-123")
+
+        assert not RoleAssignment.objects.filter(role=role).exists()
+        assert not EventAuditLog.objects.filter(event=event).exists()
+
 
 @pytest.mark.django_db(transaction=True)
 class TestAssignCategory:
@@ -243,6 +264,26 @@ class TestAssignCategory:
             t.join(timeout=5)
             connection.close()
 
+    def test_assign_category_rollback_on_failure(self, monkeypatch):
+        import events.assignments as assignments
+        from events.models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
+
+        event = Event.objects.create(name="Summer Party")
+        cat = RoleCategory.objects.create(event=event, name="Food")
+        role1 = Role.objects.create(category=cat, name="Grill Master")
+        role2 = Role.objects.create(category=cat, name="Salad Maker")
+
+        def failing_create(*args, **kwargs):
+            raise RuntimeError("Simulated failure during audit log creation")
+
+        monkeypatch.setattr(EventAuditLog.objects, "create", failing_create)
+
+        with pytest.raises(RuntimeError):
+            assignments.assign_category(event, cat.id, "Alice", "session-123")
+
+        assert not RoleAssignment.objects.filter(role__in=[role1, role2]).exists()
+        assert not EventAuditLog.objects.filter(event=event).exists()
+
 
 @pytest.mark.django_db(transaction=True)
 class TestUnclaimCategory:
@@ -320,6 +361,29 @@ class TestUnclaimCategory:
             t.join(timeout=5)
             connection.close()
 
+    def test_unclaim_category_rollback_on_failure(self, monkeypatch):
+        import events.assignments as assignments
+        from events.models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
+
+        event = Event.objects.create(name="Summer Party")
+        cat = RoleCategory.objects.create(event=event, name="Food")
+        role1 = Role.objects.create(category=cat, name="Grill Master")
+        role2 = Role.objects.create(category=cat, name="Salad Maker")
+        RoleAssignment.objects.create(role=role1, assignee_name="Bob", session_id="s1", via_category=False)
+        RoleAssignment.objects.create(role=role2, assignee_name="Alice", session_id="s2", via_category=True)
+
+        def failing_create(*args, **kwargs):
+            raise RuntimeError("Simulated failure during audit log creation")
+
+        monkeypatch.setattr(EventAuditLog.objects, "create", failing_create)
+
+        with pytest.raises(RuntimeError):
+            assignments.unclaim_category(event, cat.id, "Alice", "session-s2")
+
+        assert RoleAssignment.objects.filter(role=role1).exists()
+        assert RoleAssignment.objects.filter(role=role2).exists()
+        assert not EventAuditLog.objects.filter(event=event, action="unclaim_category").exists()
+
 
 @pytest.mark.django_db(transaction=True)
 class TestEditAssignment:
@@ -395,6 +459,27 @@ class TestEditAssignment:
             barrier.wait(timeout=5)
             t.join(timeout=5)
             connection.close()
+
+    def test_edit_assignment_rollback_on_failure(self, monkeypatch):
+        import events.assignments as assignments
+        from events.models import Event, RoleCategory, Role, EventAuditLog
+
+        event = Event.objects.create(name="Summer Party")
+        cat = RoleCategory.objects.create(event=event, name="Music")
+        role = Role.objects.create(category=cat, name="DJ")
+        assignment = assignments.assign_role(event, role.id, "Alice", "s1")
+
+        def failing_create(*args, **kwargs):
+            raise RuntimeError("Simulated failure during edit audit log creation")
+
+        monkeypatch.setattr(EventAuditLog.objects, "create", failing_create)
+
+        with pytest.raises(RuntimeError):
+            assignments.edit_assignment(event, assignment.id, "Bob", "s2")
+
+        assignment.refresh_from_db()
+        assert assignment.assignee_name == "Alice"
+        assert not EventAuditLog.objects.filter(event=event, action="edit").exists()
 
 
 @pytest.mark.django_db(transaction=True)
@@ -495,6 +580,26 @@ class TestDeleteAssignment:
             t.join(timeout=5)
             connection.close()
 
+    def test_delete_assignment_rollback_on_failure(self, monkeypatch):
+        import events.assignments as assignments
+        from events.models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
+
+        event = Event.objects.create(name="Summer Party")
+        cat = RoleCategory.objects.create(event=event, name="Music")
+        role = Role.objects.create(category=cat, name="DJ")
+        assignments.assign_role(event, role.id, "Alice", "s1")
+
+        def failing_create(*args, **kwargs):
+            raise RuntimeError("Simulated failure during delete audit log creation")
+
+        monkeypatch.setattr(EventAuditLog.objects, "create", failing_create)
+
+        with pytest.raises(RuntimeError):
+            assignments.delete_assignment(event, role.id, "s1")
+
+        assert RoleAssignment.objects.filter(role=role).exists()
+        assert not EventAuditLog.objects.filter(event=event, action="delete").exists()
+
 
 @pytest.mark.django_db(transaction=True)
 class TestUpdateGuestAssignments:
@@ -564,6 +669,27 @@ class TestUpdateGuestAssignments:
             barrier.wait(timeout=5)
             t.join(timeout=5)
             connection.close()
+
+    def test_update_guest_assignments_rollback_on_failure(self, monkeypatch):
+        import events.assignments as assignments
+        from events.models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
+
+        event = Event.objects.create(name="Summer Party")
+        cat = RoleCategory.objects.create(event=event, name="Music")
+        role = Role.objects.create(category=cat, name="DJ")
+        assignments.assign_role(event, role.id, "Alice", "s1")
+
+        def failing_create(*args, **kwargs):
+            raise RuntimeError("Simulated failure during bulk update audit log creation")
+
+        monkeypatch.setattr(EventAuditLog.objects, "create", failing_create)
+
+        with pytest.raises(RuntimeError):
+            assignments.update_guest_assignments(event, "Alice", "Alicia", "s1")
+
+        assignment = RoleAssignment.objects.get(role=role)
+        assert assignment.assignee_name == "Alice"
+        assert not EventAuditLog.objects.filter(event=event, action="update_claims").exists()
 
 
 @pytest.mark.django_db(transaction=True)

@@ -1,6 +1,6 @@
 import threading
 import pytest
-from django.db import connection, transaction
+from django.db import connection, transaction, DatabaseError
 from gifts.models import GiftList, GiftItem, GiftClaim, GiftAuditLog
 from gifts.exceptions import ClaimCollisionError, ItemNotFoundError, ClaimNotFoundError
 from core.exceptions import CollisionError, NotFoundError, HubDomainError
@@ -84,6 +84,21 @@ class TestClaimItem:
             t.join(timeout=5)
             connection.close()
 
+    def test_claim_item_rollback_on_failure(self, monkeypatch):
+        gift_list = GiftList.objects.create(name="Birthday List")
+        item = GiftItem.objects.create(gift_list=gift_list, name="Lego Set")
+
+        def failing_create(*args, **kwargs):
+            raise DatabaseError("Simulated database failure during audit log creation")
+
+        monkeypatch.setattr(GiftAuditLog.objects, "create", failing_create)
+
+        with pytest.raises(ClaimCollisionError):
+            claims.claim_item(gift_list, item.id, "Alice", "session-123")
+
+        assert not GiftClaim.objects.filter(item=item).exists()
+        assert not GiftAuditLog.objects.filter(item=item).exists()
+
 
 @pytest.mark.django_db(transaction=True)
 class TestEditClaim:
@@ -144,6 +159,23 @@ class TestEditClaim:
             barrier.wait(timeout=5)
             t.join(timeout=5)
             connection.close()
+
+    def test_edit_claim_rollback_on_failure(self, monkeypatch):
+        gift_list = GiftList.objects.create(name="Birthday List")
+        item = GiftItem.objects.create(gift_list=gift_list, name="Lego Set")
+        claim = claims.claim_item(gift_list, item.id, "Alice", "session-1")
+
+        def failing_create(*args, **kwargs):
+            raise RuntimeError("Simulated failure during edit audit log creation")
+
+        monkeypatch.setattr(GiftAuditLog.objects, "create", failing_create)
+
+        with pytest.raises(RuntimeError):
+            claims.edit_claim(gift_list, claim.id, "Bob", "session-2")
+
+        claim.refresh_from_db()
+        assert claim.assignee_name == "Alice"
+        assert GiftAuditLog.objects.filter(gift_list=gift_list, item=item, action="edit").count() == 0
 
 
 @pytest.mark.django_db(transaction=True)
@@ -209,6 +241,22 @@ class TestDeleteClaim:
             barrier.wait(timeout=5)
             t.join(timeout=5)
             connection.close()
+
+    def test_delete_claim_rollback_on_failure(self, monkeypatch):
+        gift_list = GiftList.objects.create(name="Birthday List")
+        item = GiftItem.objects.create(gift_list=gift_list, name="Lego Set")
+        claims.claim_item(gift_list, item.id, "Alice", "session-1")
+
+        def failing_create(*args, **kwargs):
+            raise RuntimeError("Simulated failure during delete audit log creation")
+
+        monkeypatch.setattr(GiftAuditLog.objects, "create", failing_create)
+
+        with pytest.raises(RuntimeError):
+            claims.delete_claim(gift_list, item.id, "session-1")
+
+        assert GiftClaim.objects.filter(item=item).exists()
+        assert GiftAuditLog.objects.filter(gift_list=gift_list, item=item, action="delete").count() == 0
 
 
 @pytest.mark.django_db(transaction=True)
@@ -282,6 +330,23 @@ class TestUpdateGuestClaims:
             barrier.wait(timeout=5)
             t.join(timeout=5)
             connection.close()
+
+    def test_update_guest_claims_rollback_on_failure(self, monkeypatch):
+        gift_list = GiftList.objects.create(name="Birthday List")
+        item = GiftItem.objects.create(gift_list=gift_list, name="Lego Set")
+        claim = claims.claim_item(gift_list, item.id, "Alice", "session-1")
+
+        def failing_create(*args, **kwargs):
+            raise RuntimeError("Simulated failure during bulk update audit log creation")
+
+        monkeypatch.setattr(GiftAuditLog.objects, "create", failing_create)
+
+        with pytest.raises(RuntimeError):
+            claims.update_guest_claims(gift_list, "Alice", "Alicia", "session-1")
+
+        claim.refresh_from_db()
+        assert claim.assignee_name == "Alice"
+        assert GiftAuditLog.objects.filter(gift_list=gift_list, action="update_claims").count() == 0
 
 
 @pytest.mark.django_db

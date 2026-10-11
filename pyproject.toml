@@ -22,7 +22,7 @@ test = [
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "hub.settings"
 python_files = ["test_*.py", "*_test.py"]
-testpaths = ["e2e"]
+testpaths = ["gifts", "events", "e2e"]
 
 [build-system]
 requires = ["setuptools"]
