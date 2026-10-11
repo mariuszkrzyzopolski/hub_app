@@ -1,4 +1,4 @@
-from django.db import transaction, DatabaseError
+from django.http import Http404
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
@@ -7,6 +7,17 @@ from django.views.generic import View
 from core.mixins import PasswordGatedViewMixin
 from core.session import get_guest_name
 from .models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
+from . import assignments
+from .exceptions import (
+    RoleCollisionError,
+    RoleAlreadyAssignedError,
+    CategoryCollisionError,
+    CategoryLockedError,
+    RoleNotFoundError,
+    CategoryNotFoundError,
+    AssignmentNotFoundError,
+)
+
 
 
 @method_decorator(never_cache, name='dispatch')
@@ -48,122 +59,51 @@ class EventDetailView(PasswordGatedViewMixin, View):
         event = get_object_or_404(Event, slug=slug)
         action = request.POST.get('action')
         guest_name = get_guest_name(request)
+        session_id = request.session.session_key or ''
 
-        if action == 'assign':
-            role_id = request.POST.get('role_id')
-            role = get_object_or_404(Role, id=role_id, category__event=event)
-            try:
-                with transaction.atomic():
-                    # Lock only the Role row — select_related on reverse OneToOne
-                    # can cause lock failures on non-existent related rows
-                    role_locked = Role.objects.select_for_update(
-                        nowait=True
-                    ).get(id=role.id)
-                    # Check for existing assignment separately
-                    existing_assignment = RoleAssignment.objects.filter(role=role_locked).first()
-                    if existing_assignment is not None:
-                        return self._render_error(request, event, 'Ta rola jest już przypisana.')
-                    if role_locked.is_locked:
-                        return self._render_error(request, event, 'Ta kategoria jest zarezerwowana. Aby zmienić role, najpierw zwolnij kategorię.')
-                    RoleAssignment.objects.create(
-                        role=role_locked,
-                        assignee_name=guest_name,
-                        session_id=request.session.session_key or '',
-                    )
-                    EventAuditLog.objects.create(
-                        event=event,
-                        role=role_locked,
-                        action='assign',
-                        assignee_name=guest_name,
-                        session_id=request.session.session_key or '',
-                    )
-            except DatabaseError:
-                return self._render_error(request, event, 'Ta rola została właśnie przypisana. Odśwież stronę i spróbuj ponownie.')
+        try:
+            if action == 'assign':
+                role_id = request.POST.get('role_id')
+                assignments.assign_role(event, role_id, guest_name, session_id)
 
-        elif action == 'assign_category':
-            category_id = request.POST.get('category_id')
-            category = get_object_or_404(RoleCategory, id=category_id, event=event)
-            try:
-                with transaction.atomic():
-                    roles = Role.objects.filter(category=category).select_for_update(
-                        nowait=True
-                    ).order_by('id')
-                    for role in roles:
-                        if not hasattr(role, 'assignment') or role.assignment is None:
-                            RoleAssignment.objects.create(
-                                role=role,
-                                assignee_name=guest_name,
-                                session_id=request.session.session_key or '',
-                                via_category=True,
-                            )
-                    EventAuditLog.objects.create(
-                        event=event,
-                        action='assign_category',
-                        assignee_name=guest_name,
-                        session_id=request.session.session_key or '',
-                    )
-            except DatabaseError:
-                return self._render_error(request, event, 'Kategoria została właśnie zajęta. Odśwież stronę i spróbuj ponownie.')
+            elif action == 'assign_category':
+                category_id = request.POST.get('category_id')
+                assignments.assign_category(event, category_id, guest_name, session_id)
 
-        elif action == 'unclaim_category':
-            category_id = request.POST.get('category_id')
-            category = get_object_or_404(RoleCategory, id=category_id, event=event)
-            with transaction.atomic():
-                assignments = RoleAssignment.objects.filter(
-                    role__category=category, via_category=True
-                ).select_for_update().order_by('id')
-                for assignment in assignments:
-                    assignment.delete()
-                EventAuditLog.objects.create(
-                    event=event,
-                    action='unclaim_category',
-                    assignee_name=guest_name,
-                    session_id=request.session.session_key or '',
-                )
+            elif action == 'unclaim_category':
+                category_id = request.POST.get('category_id')
+                assignments.unclaim_category(event, category_id, guest_name, session_id)
 
-        elif action == 'edit':
-            assignment_id = request.POST.get('assignment_id')
-            assignment = get_object_or_404(RoleAssignment, id=assignment_id, role__category__event=event)
-            old_name = assignment.assignee_name
-            assignment.assignee_name = guest_name
-            assignment.save()
-            EventAuditLog.objects.create(
-                event=event,
-                role=assignment.role,
-                action='edit',
-                assignee_name=f"{old_name} → {guest_name}",
-                session_id=request.session.session_key or '',
+            elif action == 'edit':
+                assignment_id = request.POST.get('assignment_id')
+                assignments.edit_assignment(event, assignment_id, guest_name, session_id)
+
+            elif action == 'delete':
+                role_id = request.POST.get('role_id')
+                try:
+                    assignments.delete_assignment(event, role_id, session_id)
+                except AssignmentNotFoundError:
+                    pass
+
+            elif action == 'update_claims':
+                old_name = request.POST.get('old_name', '')
+                if old_name:
+                    assignments.update_guest_assignments(event, old_name, guest_name, session_id)
+
+        except RoleAlreadyAssignedError:
+            return self._render_error(request, event, 'Ta rola jest już przypisana.')
+        except CategoryCollisionError:
+            return self._render_error(request, event, 'Kategoria została właśnie zajęta. Odśwież stronę i spróbuj ponownie.')
+        except RoleCollisionError:
+            return self._render_error(request, event, 'Ta rola została właśnie przypisana. Odśwież stronę i spróbuj ponownie.')
+        except CategoryLockedError:
+            return self._render_error(
+                request,
+                event,
+                'Ta kategoria jest zarezerwowana. Aby zmienić role, najpierw zwolnij kategorię.',
             )
-
-        elif action == 'delete':
-            role_id = request.POST.get('role_id')
-            role = get_object_or_404(Role, id=role_id, category__event=event)
-            assignment = RoleAssignment.objects.filter(role=role).first()
-            if assignment:
-                assignee = assignment.assignee_name
-                assignment.delete()
-                EventAuditLog.objects.create(
-                    event=event,
-                    role=role,
-                    action='delete',
-                    assignee_name=assignee,
-                    session_id=request.session.session_key or '',
-                    is_deleted=True,
-                )
-
-        elif action == 'update_claims':
-            old_name = request.POST.get('old_name', '')
-            if old_name:
-                updated = RoleAssignment.objects.filter(
-                    role__category__event=event, assignee_name=old_name
-                ).update(assignee_name=guest_name)
-                if updated > 0:
-                    EventAuditLog.objects.create(
-                        event=event,
-                        action='update_claims',
-                        assignee_name=f"{old_name} → {guest_name}",
-                        session_id=request.session.session_key or '',
-                    )
+        except (RoleNotFoundError, CategoryNotFoundError, AssignmentNotFoundError):
+            raise Http404("Role, category or assignment not found")
 
         return redirect('event-roles', slug=slug)
 

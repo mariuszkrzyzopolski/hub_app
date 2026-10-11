@@ -168,6 +168,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.agents
+.scratch
 
 # Spyder project settings
 .spyderproject
@@ -242,3 +244,4 @@ __marimo__/
 *.swp
 *.swo
 *.Identifier
+.worktrees/
