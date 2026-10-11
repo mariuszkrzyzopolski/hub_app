@@ -58,17 +58,17 @@ def edit_claim(gift_list, claim_id, guest_name, session_id):
     """
     with transaction.atomic():
         try:
-            claim = GiftClaim.objects.select_related('item').get(
-                id=claim_id, item__gift_list=gift_list
+            claim = (
+                GiftClaim.objects.select_for_update(nowait=True)
+                .select_related('item')
+                .get(id=claim_id, item__gift_list=gift_list)
             )
         except GiftClaim.DoesNotExist:
             raise ClaimNotFoundError(f"GiftClaim {claim_id} not found in gift list")
-
-        try:
-            item = GiftItem.objects.select_for_update(nowait=True).get(id=claim.item_id)
         except DatabaseError as e:
             raise ClaimCollisionError(str(e))
 
+        item = claim.item
         old_name = claim.assignee_name
         claim.assignee_name = guest_name
         claim.save()
@@ -133,6 +133,7 @@ def update_guest_claims(gift_list, old_name, new_name, session_id):
             items = list(
                 GiftItem.objects.select_for_update(nowait=True)
                 .filter(gift_list=gift_list, claim__assignee_name=old_name)
+                .order_by('id')
             )
         except DatabaseError as e:
             raise ClaimCollisionError(str(e))

@@ -2,6 +2,8 @@ from django.db import transaction, DatabaseError
 from events.models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
 from events.exceptions import (
     RoleCollisionError,
+    RoleAlreadyAssignedError,
+    CategoryCollisionError,
     CategoryLockedError,
     RoleNotFoundError,
     CategoryNotFoundError,
@@ -31,7 +33,7 @@ def assign_role(event, role_id, guest_name, session_id):
 
         existing_assignment = RoleAssignment.objects.filter(role=role).first()
         if existing_assignment is not None:
-            raise RoleCollisionError("Ta rola jest już przypisana.")
+            raise RoleAlreadyAssignedError("Ta rola jest już przypisana.")
 
         if role.is_locked:
             raise CategoryLockedError("Ta kategoria jest zarezerwowana. Aby zmienić role, najpierw zwolnij kategorię.")
@@ -73,15 +75,15 @@ def assign_category(event, category_id, guest_name, session_id):
         try:
             roles = list(
                 Role.objects.filter(category=category)
-                .select_for_update(nowait=True)
+                .select_for_update()
                 .order_by('id')
             )
         except DatabaseError as e:
-            raise RoleCollisionError("Kategoria została właśnie zajęta. Odśwież stronę i spróbuj ponownie.")
+            raise CategoryCollisionError("Kategoria została właśnie zajęta. Odśwież stronę i spróbuj ponownie.")
 
         # Invariant: check if the category is already claimed via category
         if RoleAssignment.objects.filter(role__in=roles, via_category=True).exists():
-            raise RoleCollisionError("Kategoria została właśnie zajęta. Odśwież stronę i spróbuj ponownie.")
+            raise CategoryCollisionError("Kategoria została właśnie zajęta. Odśwież stronę i spróbuj ponownie.")
 
         existing_assignments = {
             a.role_id: a for a in RoleAssignment.objects.filter(role__in=roles)
@@ -161,17 +163,17 @@ def edit_assignment(event, assignment_id, guest_name, session_id):
     """
     with transaction.atomic():
         try:
-            assignment = RoleAssignment.objects.select_related('role__category').get(
-                id=assignment_id, role__category__event=event
+            assignment = (
+                RoleAssignment.objects.select_for_update(nowait=True)
+                .select_related('role__category')
+                .get(id=assignment_id, role__category__event=event)
             )
         except RoleAssignment.DoesNotExist:
             raise AssignmentNotFoundError(f"RoleAssignment {assignment_id} not found in event")
-
-        try:
-            role = Role.objects.select_for_update(nowait=True).get(id=assignment.role_id)
         except DatabaseError as e:
             raise RoleCollisionError(str(e))
 
+        role = assignment.role
         old_name = assignment.assignee_name
         assignment.assignee_name = guest_name
         assignment.save()

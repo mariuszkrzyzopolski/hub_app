@@ -243,4 +243,5 @@ __marimo__/
 .idea/
 *.swp
 *.swo
-*.Identifier.worktrees/
+*.Identifier
+.worktrees/

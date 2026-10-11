@@ -5,6 +5,8 @@ from core.exceptions import CollisionError, NotFoundError, LockedError, HubDomai
 def test_exception_hierarchy():
     from events.exceptions import (
         RoleCollisionError,
+        RoleAlreadyAssignedError,
+        CategoryCollisionError,
         CategoryLockedError,
         RoleNotFoundError,
         CategoryNotFoundError,
@@ -12,12 +14,15 @@ def test_exception_hierarchy():
     )
     assert issubclass(RoleCollisionError, CollisionError)
     assert issubclass(RoleCollisionError, HubDomainError)
+    assert issubclass(RoleAlreadyAssignedError, RoleCollisionError)
+    assert issubclass(CategoryCollisionError, RoleCollisionError)
     assert issubclass(CategoryLockedError, LockedError)
     assert issubclass(CategoryLockedError, HubDomainError)
     assert issubclass(RoleNotFoundError, NotFoundError)
     assert issubclass(RoleNotFoundError, HubDomainError)
     assert issubclass(CategoryNotFoundError, NotFoundError)
     assert issubclass(CategoryNotFoundError, HubDomainError)
+    assert issubclass(AssignmentNotFoundError, RoleNotFoundError)
     assert issubclass(AssignmentNotFoundError, NotFoundError)
     assert issubclass(AssignmentNotFoundError, HubDomainError)
 
@@ -28,7 +33,7 @@ class TestAssignRole:
         import events.assignments as assignments
         from events.models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
 
@@ -52,8 +57,8 @@ class TestAssignRole:
         from events.models import Event, RoleCategory, Role
         from events.exceptions import RoleNotFoundError
 
-        event = Event.objects.create(name="Summer Party")
-        other_event = Event.objects.create(name="Other Party")
+        event = Event.objects.create(name="Summer Gathering")
+        other_event = Event.objects.create(name="Other Gathering")
         cat = RoleCategory.objects.create(event=other_event, name="Music")
         other_role = Role.objects.create(category=cat, name="DJ")
 
@@ -68,7 +73,7 @@ class TestAssignRole:
         from events.models import Event, RoleCategory, Role
         from events.exceptions import RoleCollisionError
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
 
@@ -83,7 +88,7 @@ class TestAssignRole:
         from events.models import Event, RoleCategory, Role, RoleAssignment
         from events.exceptions import CategoryLockedError
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role1 = Role.objects.create(category=cat, name="DJ")
         role2 = Role.objects.create(category=cat, name="Speaker Setup")
@@ -102,7 +107,7 @@ class TestAssignRole:
         from events.models import Event, RoleCategory, Role
         from events.exceptions import RoleCollisionError
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
 
@@ -138,7 +143,7 @@ class TestAssignRole:
         from django.db import DatabaseError
         from events.exceptions import RoleCollisionError
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
 
@@ -160,7 +165,7 @@ class TestAssignCategory:
         import events.assignments as assignments
         from events.models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Food")
         role1 = Role.objects.create(category=cat, name="Grill Master")
         role2 = Role.objects.create(category=cat, name="Salad Maker")
@@ -183,7 +188,7 @@ class TestAssignCategory:
         import events.assignments as assignments
         from events.models import Event, RoleCategory, Role, RoleAssignment
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Food")
         role1 = Role.objects.create(category=cat, name="Grill Master")
         role2 = Role.objects.create(category=cat, name="Salad Maker")
@@ -202,8 +207,8 @@ class TestAssignCategory:
         from events.models import Event, RoleCategory
         from events.exceptions import CategoryNotFoundError
 
-        event = Event.objects.create(name="Summer Party")
-        other_event = Event.objects.create(name="Other Party")
+        event = Event.objects.create(name="Summer Gathering")
+        other_event = Event.objects.create(name="Other Gathering")
         cat = RoleCategory.objects.create(event=other_event, name="Food")
 
         with pytest.raises(CategoryNotFoundError):
@@ -217,7 +222,7 @@ class TestAssignCategory:
         from events.models import Event, RoleCategory, Role
         from events.exceptions import RoleCollisionError
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Food")
         Role.objects.create(category=cat, name="Grill Master")
 
@@ -228,17 +233,17 @@ class TestAssignCategory:
         assert "Kategoria została właśnie zajęta" in str(exc_info.value)
 
     def test_assign_category_lock_contention_raises_collision(self):
+        import time
         import threading
         from django.db import connection, transaction
         import events.assignments as assignments
-        from events.models import Event, RoleCategory, Role
-        from events.exceptions import RoleCollisionError
+        from events.models import Event, RoleCategory, Role, RoleAssignment
+        from events.exceptions import RoleCollisionError, CategoryCollisionError
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Food")
         role = Role.objects.create(category=cat, name="Grill Master")
 
-        barrier = threading.Barrier(2)
         lock_acquired = threading.Event()
 
         def hold_lock():
@@ -247,7 +252,8 @@ class TestAssignCategory:
                 with transaction.atomic():
                     Role.objects.select_for_update().get(id=role.id)
                     lock_acquired.set()
-                    barrier.wait(timeout=5)
+                    time.sleep(0.5)
+                    RoleAssignment.objects.create(role=role, assignee_name="Bob", session_id="s1", via_category=True)
             finally:
                 connection.close()
 
@@ -259,8 +265,8 @@ class TestAssignCategory:
             with pytest.raises(RoleCollisionError) as exc_info:
                 assignments.assign_category(event, cat.id, "Alice", "session-123")
             assert "Kategoria została właśnie zajęta" in str(exc_info.value)
+            assert isinstance(exc_info.value, CategoryCollisionError)
         finally:
-            barrier.wait(timeout=5)
             t.join(timeout=5)
             connection.close()
 
@@ -268,7 +274,7 @@ class TestAssignCategory:
         import events.assignments as assignments
         from events.models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Food")
         role1 = Role.objects.create(category=cat, name="Grill Master")
         role2 = Role.objects.create(category=cat, name="Salad Maker")
@@ -291,7 +297,7 @@ class TestUnclaimCategory:
         import events.assignments as assignments
         from events.models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Food")
         role1 = Role.objects.create(category=cat, name="Grill Master")
         role2 = Role.objects.create(category=cat, name="Salad Maker")
@@ -315,8 +321,8 @@ class TestUnclaimCategory:
         from events.models import Event, RoleCategory
         from events.exceptions import CategoryNotFoundError
 
-        event = Event.objects.create(name="Summer Party")
-        other_event = Event.objects.create(name="Other Party")
+        event = Event.objects.create(name="Summer Gathering")
+        other_event = Event.objects.create(name="Other Gathering")
         cat = RoleCategory.objects.create(event=other_event, name="Food")
 
         with pytest.raises(CategoryNotFoundError):
@@ -332,7 +338,7 @@ class TestUnclaimCategory:
         from events.models import Event, RoleCategory, Role
         from events.exceptions import RoleCollisionError
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Food")
         role = Role.objects.create(category=cat, name="Grill Master")
 
@@ -365,7 +371,7 @@ class TestUnclaimCategory:
         import events.assignments as assignments
         from events.models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Food")
         role1 = Role.objects.create(category=cat, name="Grill Master")
         role2 = Role.objects.create(category=cat, name="Salad Maker")
@@ -391,7 +397,7 @@ class TestEditAssignment:
         import events.assignments as assignments
         from events.models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
         assignment = assignments.assign_role(event, role.id, "Alice", "session-1")
@@ -411,8 +417,8 @@ class TestEditAssignment:
         from events.models import Event, RoleCategory, Role
         from events.exceptions import AssignmentNotFoundError
 
-        event = Event.objects.create(name="Summer Party")
-        other_event = Event.objects.create(name="Other Party")
+        event = Event.objects.create(name="Summer Gathering")
+        other_event = Event.objects.create(name="Other Gathering")
         cat = RoleCategory.objects.create(event=other_event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
         other_assignment = assignments.assign_role(other_event, role.id, "Alice", "s1")
@@ -430,7 +436,7 @@ class TestEditAssignment:
         from events.models import Event, RoleCategory, Role
         from events.exceptions import RoleCollisionError
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
         assignment = assignments.assign_role(event, role.id, "Alice", "s1")
@@ -464,7 +470,7 @@ class TestEditAssignment:
         import events.assignments as assignments
         from events.models import Event, RoleCategory, Role, EventAuditLog
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
         assignment = assignments.assign_role(event, role.id, "Alice", "s1")
@@ -488,7 +494,7 @@ class TestDeleteAssignment:
         import events.assignments as assignments
         from events.models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
         assignments.assign_role(event, role.id, "Alice", "s1")
@@ -506,8 +512,8 @@ class TestDeleteAssignment:
         from events.models import Event, RoleCategory, Role
         from events.exceptions import RoleNotFoundError
 
-        event = Event.objects.create(name="Summer Party")
-        other_event = Event.objects.create(name="Other Party")
+        event = Event.objects.create(name="Summer Gathering")
+        other_event = Event.objects.create(name="Other Gathering")
         cat = RoleCategory.objects.create(event=other_event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
 
@@ -522,7 +528,7 @@ class TestDeleteAssignment:
         from events.models import Event, RoleCategory, Role
         from events.exceptions import AssignmentNotFoundError
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
 
@@ -534,7 +540,7 @@ class TestDeleteAssignment:
         from events.models import Event, RoleCategory, Role, RoleAssignment
         from events.exceptions import CategoryLockedError
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
         RoleAssignment.objects.create(role=role, assignee_name="Alice", session_id="s1", via_category=True)
@@ -550,7 +556,7 @@ class TestDeleteAssignment:
         from events.models import Event, RoleCategory, Role
         from events.exceptions import RoleCollisionError
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
         assignments.assign_role(event, role.id, "Alice", "s1")
@@ -584,7 +590,7 @@ class TestDeleteAssignment:
         import events.assignments as assignments
         from events.models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
         assignments.assign_role(event, role.id, "Alice", "s1")
@@ -607,7 +613,7 @@ class TestUpdateGuestAssignments:
         import events.assignments as assignments
         from events.models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role1 = Role.objects.create(category=cat, name="DJ")
         role2 = Role.objects.create(category=cat, name="Lights")
@@ -628,7 +634,7 @@ class TestUpdateGuestAssignments:
         import events.assignments as assignments
         from events.models import Event
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
 
         assert assignments.update_guest_assignments(event, "", "Alicia", "s1") == 0
         assert assignments.update_guest_assignments(event, "Nobody", "Alicia", "s1") == 0
@@ -640,7 +646,7 @@ class TestUpdateGuestAssignments:
         from events.models import Event, RoleCategory, Role
         from events.exceptions import RoleCollisionError
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
         assignments.assign_role(event, role.id, "Alice", "s1")
@@ -674,7 +680,7 @@ class TestUpdateGuestAssignments:
         import events.assignments as assignments
         from events.models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
         assignments.assign_role(event, role.id, "Alice", "s1")
@@ -697,7 +703,7 @@ class TestEventDetailViewDelegation:
     def test_post_assign_success_redirects(self, client):
         from events.models import Event, RoleCategory, Role, RoleAssignment
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
 
@@ -717,7 +723,7 @@ class TestEventDetailViewDelegation:
     def test_post_assign_collision_renders_error(self, client):
         from events.models import Event, RoleCategory, Role, RoleAssignment
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
         RoleAssignment.objects.create(role=role, assignee_name="Bob", session_id="s1")
@@ -738,7 +744,7 @@ class TestEventDetailViewDelegation:
     def test_post_assign_category_locked_renders_error(self, client):
         from events.models import Event, RoleCategory, Role, RoleAssignment
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role1 = Role.objects.create(category=cat, name="DJ")
         role2 = Role.objects.create(category=cat, name="Lights")
@@ -760,7 +766,7 @@ class TestEventDetailViewDelegation:
     def test_post_assign_category_success_redirects(self, client):
         from events.models import Event, RoleCategory, Role, RoleAssignment
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role1 = Role.objects.create(category=cat, name="DJ")
         role2 = Role.objects.create(category=cat, name="Lights")
@@ -781,7 +787,7 @@ class TestEventDetailViewDelegation:
     def test_post_assign_category_collision_renders_error(self, client):
         from events.models import Event, RoleCategory, Role, RoleAssignment
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
         RoleAssignment.objects.create(role=role, assignee_name="Bob", session_id="s1", via_category=True)
@@ -802,7 +808,7 @@ class TestEventDetailViewDelegation:
     def test_post_unclaim_category_success_redirects(self, client):
         from events.models import Event, RoleCategory, Role, RoleAssignment
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
         RoleAssignment.objects.create(role=role, assignee_name="Bob", session_id="s1", via_category=True)
@@ -822,7 +828,7 @@ class TestEventDetailViewDelegation:
     def test_post_edit_success_redirects(self, client):
         from events.models import Event, RoleCategory, Role, RoleAssignment
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
         assignment = RoleAssignment.objects.create(role=role, assignee_name="Alice", session_id="s1")
@@ -843,7 +849,7 @@ class TestEventDetailViewDelegation:
     def test_post_delete_success_redirects(self, client):
         from events.models import Event, RoleCategory, Role, RoleAssignment
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
         RoleAssignment.objects.create(role=role, assignee_name="Alice", session_id="s1")
@@ -863,7 +869,7 @@ class TestEventDetailViewDelegation:
     def test_post_update_claims_success_redirects(self, client):
         from events.models import Event, RoleCategory, Role, RoleAssignment
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
         cat = RoleCategory.objects.create(event=event, name="Music")
         role = Role.objects.create(category=cat, name="DJ")
         assignment = RoleAssignment.objects.create(role=role, assignee_name="Alice", session_id="s1")
@@ -884,7 +890,7 @@ class TestEventDetailViewDelegation:
     def test_post_not_found_raises_404(self, client):
         from events.models import Event
 
-        event = Event.objects.create(name="Summer Party")
+        event = Event.objects.create(name="Summer Gathering")
 
         session = client.session
         session['guest_name'] = 'Alice'

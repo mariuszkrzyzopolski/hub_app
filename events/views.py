@@ -10,6 +10,8 @@ from .models import Event, RoleCategory, Role, RoleAssignment, EventAuditLog
 from . import assignments
 from .exceptions import (
     RoleCollisionError,
+    RoleAlreadyAssignedError,
+    CategoryCollisionError,
     CategoryLockedError,
     RoleNotFoundError,
     CategoryNotFoundError,
@@ -88,24 +90,18 @@ class EventDetailView(PasswordGatedViewMixin, View):
                 if old_name:
                     assignments.update_guest_assignments(event, old_name, guest_name, session_id)
 
-        except CategoryLockedError as e:
+        except RoleAlreadyAssignedError:
+            return self._render_error(request, event, 'Ta rola jest już przypisana.')
+        except CategoryCollisionError:
+            return self._render_error(request, event, 'Kategoria została właśnie zajęta. Odśwież stronę i spróbuj ponownie.')
+        except RoleCollisionError:
+            return self._render_error(request, event, 'Ta rola została właśnie przypisana. Odśwież stronę i spróbuj ponownie.')
+        except CategoryLockedError:
             return self._render_error(
                 request,
                 event,
-                str(e) or 'Ta kategoria jest zarezerwowana. Aby zmienić role, najpierw zwolnij kategorię.',
+                'Ta kategoria jest zarezerwowana. Aby zmienić role, najpierw zwolnij kategorię.',
             )
-        except RoleCollisionError as e:
-            msg = str(e)
-            if msg not in (
-                'Ta rola jest już przypisana.',
-                'Ta rola została właśnie przypisana. Odśwież stronę i spróbuj ponownie.',
-                'Kategoria została właśnie zajęta. Odśwież stronę i spróbuj ponownie.',
-            ):
-                if action == 'assign_category':
-                    msg = 'Kategoria została właśnie zajęta. Odśwież stronę i spróbuj ponownie.'
-                else:
-                    msg = 'Ta rola została właśnie przypisana. Odśwież stronę i spróbuj ponownie.'
-            return self._render_error(request, event, msg)
         except (RoleNotFoundError, CategoryNotFoundError, AssignmentNotFoundError):
             raise Http404("Role, category or assignment not found")
 

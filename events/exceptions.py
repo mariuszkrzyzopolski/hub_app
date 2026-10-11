@@ -6,6 +6,16 @@ class RoleCollisionError(CollisionError):
     pass
 
 
+class RoleAlreadyAssignedError(RoleCollisionError):
+    """Raised when a role is already assigned prior to this operation."""
+    pass
+
+
+class CategoryCollisionError(RoleCollisionError):
+    """Raised when category assignment collides or experiences lock contention."""
+    pass
+
+
 class CategoryLockedError(LockedError):
     """Raised when an operation cannot be performed because the category is locked."""
     pass
@@ -21,7 +31,8 @@ class CategoryNotFoundError(NotFoundError):
     pass
 
 
-class AssignmentNotFoundError(NotFoundError):
+class AssignmentNotFoundError(RoleNotFoundError):
     """Raised when a role assignment is not found in the given event."""
     pass
+
 
