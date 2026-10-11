@@ -1,4 +1,4 @@
-from django.db import transaction, DatabaseError
+from django.http import Http404
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
@@ -6,7 +6,9 @@ from django.views.decorators.cache import never_cache
 from django.views.generic import View
 from core.mixins import PasswordGatedViewMixin
 from core.session import get_guest_name
-from .models import GiftList, GiftItem, GiftClaim, GiftAuditLog
+from .models import GiftList, GiftItem, GiftClaim
+from . import claims
+from .exceptions import ClaimCollisionError, ItemNotFoundError, ClaimNotFoundError
 
 
 @method_decorator(never_cache, name='dispatch')
@@ -30,10 +32,10 @@ class GiftListView(PasswordGatedViewMixin, View):
 
         # Explicitly fetch claims and attach to items — select_related on reverse
         # OneToOne is unreliable; dict lookup guarantees the claim accessor works.
-        claims = {c.item_id: c for c in GiftClaim.objects.filter(item__in=items)}
+        claims_map = {c.item_id: c for c in GiftClaim.objects.filter(item__in=items)}
         for item in items:
-            if item.id in claims:
-                item.claim = claims[item.id]
+            if item.id in claims_map:
+                item.claim = claims_map[item.id]
 
         guest_name = get_guest_name(request)
         claimed = sum(1 for i in items if hasattr(i, 'claim') and i.claim is not None)
@@ -49,81 +51,38 @@ class GiftListView(PasswordGatedViewMixin, View):
         gift_list = get_object_or_404(GiftList, slug=slug)
         action = request.POST.get('action')
         guest_name = get_guest_name(request)
+        session_id = request.session.session_key or ''
 
-        if action == 'claim':
-            item_id = request.POST.get('item_id')
-            item = get_object_or_404(GiftItem, id=item_id, gift_list=gift_list)
-            try:
-                with transaction.atomic():
-                    # Lock only the GiftItem row — select_related on reverse OneToOne
-                    # can cause lock failures on non-existent related rows
-                    item_locked = GiftItem.objects.select_for_update(
-                        nowait=True
-                    ).get(id=item.id)
-                    # Check for existing claim separately
-                    existing_claim = GiftClaim.objects.filter(item=item_locked).first()
-                    if existing_claim is not None:
-                        return self._render_gift_list(request, gift_list, guest_name,
-                            'Ten prezent został właśnie zajęty. Odśwież stronę i wybierz inny.')
-                    GiftClaim.objects.create(
-                        item=item_locked,
-                        assignee_name=guest_name,
-                        session_id=request.session.session_key or '',
-                    )
-                    GiftAuditLog.objects.create(
-                        gift_list=gift_list,
-                        item=item_locked,
-                        action='claim',
-                        assignee_name=guest_name,
-                        session_id=request.session.session_key or '',
-                    )
-            except DatabaseError:
-                return self._render_gift_list(request, gift_list, guest_name,
-                    'Ten prezent został właśnie zajęty. Odśwież stronę i wybierz inny.')
+        try:
+            if action == 'claim':
+                item_id = request.POST.get('item_id')
+                claims.claim_item(gift_list, item_id, guest_name, session_id)
 
-        elif action == 'edit':
-            claim_id = request.POST.get('claim_id')
-            claim = get_object_or_404(GiftClaim, id=claim_id, item__gift_list=gift_list)
-            old_name = claim.assignee_name
-            claim.assignee_name = guest_name
-            claim.save()
-            GiftAuditLog.objects.create(
-                gift_list=gift_list,
-                item=claim.item,
-                action='edit',
-                assignee_name=f"{old_name} → {guest_name}",
-                session_id=request.session.session_key or '',
+            elif action == 'edit':
+                claim_id = request.POST.get('claim_id')
+                claims.edit_claim(gift_list, claim_id, guest_name, session_id)
+
+            elif action == 'delete':
+                item_id = request.POST.get('item_id')
+                try:
+                    claims.delete_claim(gift_list, item_id, session_id)
+                except ClaimNotFoundError:
+                    pass
+
+            elif action == 'update_claims':
+                old_name = request.POST.get('old_name', '')
+                if old_name:
+                    claims.update_guest_claims(gift_list, old_name, guest_name, session_id)
+
+        except ClaimCollisionError:
+            return self._render_gift_list(
+                request,
+                gift_list,
+                guest_name,
+                'Ten prezent został właśnie zajęty. Odśwież stronę i wybierz inny.',
             )
-
-        elif action == 'delete':
-            item_id = request.POST.get('item_id')
-            item = get_object_or_404(GiftItem, id=item_id, gift_list=gift_list)
-            claim = GiftClaim.objects.filter(item=item).first()
-            if claim:
-                assignee = claim.assignee_name
-                claim.delete()
-                GiftAuditLog.objects.create(
-                    gift_list=gift_list,
-                    item=item,
-                    action='delete',
-                    assignee_name=assignee,
-                    session_id=request.session.session_key or '',
-                    is_deleted=True,
-                )
-
-        elif action == 'update_claims':
-            old_name = request.POST.get('old_name', '')
-            if old_name:
-                updated = GiftClaim.objects.filter(
-                    item__gift_list=gift_list, assignee_name=old_name
-                ).update(assignee_name=guest_name)
-                if updated > 0:
-                    GiftAuditLog.objects.create(
-                        gift_list=gift_list,
-                        action='update_claims',
-                        assignee_name=f"{old_name} → {guest_name}",
-                        session_id=request.session.session_key or '',
-                    )
+        except (ItemNotFoundError, ClaimNotFoundError):
+            raise Http404("Item or claim not found")
 
         return redirect('gift-list', slug=slug)
 
